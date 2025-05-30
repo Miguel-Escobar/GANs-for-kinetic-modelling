@@ -15,13 +15,9 @@ The package has been tested on:
 * MacOS: Mojave 10.14.6
 * Windows: Windows 10
 #### Python dependencies
-ReKinDLe uses the follwing python packages
+Our fork of ReKinDLe uses the following python packages:
 
-    tensorflow==2.2.0
-    tensorflow-estimator==2.2.0
-    tensorflow-gpu 
-    keras==2.4.3
-    keras-preprocessing
+    pytorch-withRocm
     h5py
     numpy
     pandas
@@ -36,17 +32,10 @@ You can download and install these packages yourself or check out the installati
 
 ## Installation
 
-First, you need to clone the repository to your local machine
-
-    git clone https://github.com/EPFL-LCSB/rekindle.git /path/to/rekindle
-    cd /path/to/rekindle
-
-You can build the RekinDLe package in a conda environment. Check the instructions to download and install conda for your OS [here](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html)
-Then, you create a conda virtual environement and install all the needed packages for GAN training:
-    
-    conda env create -f rekindle_env.yml
-    
-Installation typically takes 2-3 minutes on a standard desktop computer. 
+Our fork deviates from standard installation. It is recommended to simpy install devenv on your personal machine and instantiate the environment via 
+'''
+nix develov --no-pure-eval
+'''
 
 ### Additional requirements
 Additionally, you will need to install SkimPy to work run certain scripts. Check the instructions to install SkimPy [here](https://github.com/EPFL-LCSB/skimpy/).<b> Note: SkimPy is not a part of the 
