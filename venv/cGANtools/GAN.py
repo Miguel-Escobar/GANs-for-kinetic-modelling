@@ -651,6 +651,7 @@ class CGAN:
         path_models = f"{self.savepath}saved_models/"
         os.makedirs(path_models, exist_ok=True)
 
-        t
-        # self.generator.save(f"{path_models}generator_{epoch}.h5")
-        #    self.discriminator.save(f'{path_models}discriminator_{epoch}.h5')
+        torch.save(self.generator.state_dict(), f"{path_models}generator_{epoch}.h5")
+        torch.save(
+            self.discriminator.state_dict(), f"{path_models}discriminator_{epoch}.h5"
+        )
