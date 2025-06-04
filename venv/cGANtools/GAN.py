@@ -14,6 +14,7 @@ import torch.nn.functional as F
 from random import sample
 from functools import partial
 
+import pandas as pd
 
 import helper as hp
 
@@ -361,7 +362,8 @@ class CGAN:
         self.max_x = None
         self.informed_labelling = False
 
-        self.noise_dim = 3  # TODO: Make an informed decision.
+        self.noise_dim = 8  # TODO: Make an informed decision.
+        self.adam_parameters = {"lr": 0.0002, "betas": (0.5, 0.99)}
 
         if path_generator == None:
             self.transfer_learning = False
@@ -374,7 +376,7 @@ class CGAN:
         self.y_train = y_train
 
         self.discriminator = Discriminator(
-            embedding_dim=4,  # TODO : Make an informed decision.
+            embedding_dim=32,  # TODO : Make an informed decision.
             n_parameters=self.param_shape,
             n_transformer_layers=2,  # TODO : Make an informed decision.
             MLP_dim=64,  # TODO : Make an informed decision.
@@ -388,13 +390,12 @@ class CGAN:
         )
 
         self.optimizer_discriminator = torch.optim.Adam(
-            self.discriminator.parameters(), lr=0.0002, betas=(0.5, 0.999)
+            self.discriminator.parameters(),
+            lr=self.adam_parameters["lr"],
+            betas=self.adam_parameters["betas"],
         )
 
         # Build and compile the generator
-        # self.generator = self.build_generator()
-        # self.generator.compile(loss=['binary_crossentropy'],
-        #                        optimizer=optimizer, metrics='accuracy')
         self.generator = Generator(
             embedding_dim=30,  # TODO : Make an informed decision.
             n_parameters=self.param_shape,
@@ -410,14 +411,16 @@ class CGAN:
         )
 
         self.optimizer_generator = torch.optim.Adam(
-            self.generator.parameters(), lr=0.0002, betas=(0.5, 0.999)
+            self.generator.parameters(),
+            lr=self.adam_parameters["lr"],
+            betas=self.adam_parameters["betas"],
         )
 
         print(f"Total trainable parameters: {g_trainable_count + d_trainable_count}")
 
     def train(
-        self, epochs: int, sample_interval: int, n_samples: int
-    ) -> tuple[list, list, list]:
+        self, epochs: int, sample_interval: int, n_samples: int, disc_iters: int = 4
+    ) -> pd.DataFrame:
         """
         Trains the GAN.
 
@@ -425,11 +428,11 @@ class CGAN:
         - epochs (int): The number to epochs
         - sample_interval (int): Every 'sample_interval' epochs, we sample parameters and store them.
         - n_samples (int): The number of samples to generate at each sample interval.
+        - disc_iters (int): The amount of iterations for the discriminator done on each batch.
 
         Returns:
-        - all_d_loss (list): List of discriminator losses for each epoch.
-        - all_g_loss (list): List of generator losses for each epoch.
-        - all_acc (list): List of accuracies for each epoch.
+        - progress (pd.DataFrame): A DataFrame containing the training progress, including discriminator loss, generator loss, and accuracy.
+        columnas are ["epoch", "D loss", "G loss", "acc", "real acc", "fake acc"].
         """
 
         # We move the models to the device an set training mode
@@ -462,7 +465,11 @@ class CGAN:
         samples_per_epoch = X_train.shape[0]
         number_of_batches = int(samples_per_epoch / batchsize)
 
-        criterion = criterion = torch.nn.BCELoss()
+        criterion = torch.nn.BCEWithLogitsLoss()
+
+        progress = pd.DataFrame(
+            columns=["epoch", "D loss", "G loss", "acc", "real acc", "fake acc"]
+        )
 
         # In each epoch we train once on each batch
         for epoch in range(epochs):
@@ -470,6 +477,8 @@ class CGAN:
             epoch_g_loss = []
             epoch_d_loss = []
             epoch_acc = []
+            epoch_real_acc = []
+            epoch_fake_acc = []
 
             """
             On each iteration, we train on a batch.
@@ -484,53 +493,92 @@ class CGAN:
                 # ---------------------
                 #  Train Discriminator
                 # ---------------------
+                partial_disc_loss = []
+                partial_real_acc = []
+                partial_fake_acc = []
+                partial_disc_acc = []
+                for iter in range(disc_iters):
+                    self.discriminator.zero_grad()
+                    self.generator.zero_grad()
 
-                self.discriminator.zero_grad()
-                self.generator.zero_grad()
+                    # Select a random half batch
+                    idx = np.random.randint(0, X_batch.shape[0], half_batch)
+                    params_np, labels_np = X_batch[idx], y_batch[idx]
 
-                # Select a random half batch
-                idx = np.random.randint(0, X_batch.shape[0], half_batch)
-                params_np, labels_np = X_batch[idx], y_batch[idx]
+                    params = torch.tensor(params_np, dtype=torch.float32, device=device)
+                    labels = torch.tensor(labels_np, dtype=torch.float32, device=device)
+                    noise = torch.randn(
+                        half_batch, self.latent_dim, self.noise_dim, device=device
+                    )
 
-                params = torch.tensor(params_np, dtype=torch.float32, device=device)
-                labels = torch.tensor(labels_np, dtype=torch.float32, device=device)
-                noise = torch.randn(
-                    half_batch, self.latent_dim, self.noise_dim, device=device
-                )
+                    labels_formatted = labels.unsqueeze(1).repeat(1, self.noise_dim)
 
-                labels_formatted = labels.unsqueeze(1).repeat(1, self.noise_dim)
+                    labels_formatted = labels_formatted.unsqueeze(1)
 
-                labels_formatted = labels_formatted.unsqueeze(1)
+                    # print("Good labels shape:", labels_formatted.shape)
+                    # print("Good noise shape: ", noise.shape)
 
-                # print("Good labels shape:", labels_formatted.shape)
-                # print("Good noise shape: ", noise.shape)
+                    data = torch.cat([noise, labels_formatted], dim=1)
 
-                data = torch.cat([noise, labels_formatted], dim=1)
+                    # Generate a half batch
+                    gen_params = self.generator(data)
 
-                # Generate a half batch
-                gen_params = self.generator(data)
+                    # DISCRIMINATE:
+                    valid = torch.ones(
+                        (half_batch, 1), device=device, dtype=torch.float32
+                    )
+                    fake = torch.zeros(
+                        (half_batch, 1), device=device, dtype=torch.float32
+                    )
 
-                # DISCRIMINATE:
-                valid = torch.ones((half_batch, 1), device=device, dtype=torch.float32)
-                fake = torch.zeros((half_batch, 1), device=device, dtype=torch.float32)
+                    labels = labels.unsqueeze(1)
 
-                labels = labels.unsqueeze(1)
+                    # Reales
+                    real_inputs = torch.cat((params, labels), dim=1)
+                    pred_real = self.discriminator(real_inputs)
+                    d_loss_real = criterion(pred_real, valid)
 
-                # Reales
-                real_inputs = torch.cat((params, labels), dim=1)
-                pred_real = self.discriminator(real_inputs)
-                d_loss_real = criterion(pred_real, valid)
+                    # Fakes
+                    fake_inputs = torch.cat((gen_params, labels), dim=1)
+                    pred_fake = self.discriminator(fake_inputs)
+                    d_loss_fake = criterion(pred_fake, fake)
 
-                # Fakes
-                fake_inputs = torch.cat((gen_params, labels), dim=1)
-                pred_fake = self.discriminator(fake_inputs)
-                d_loss_fake = criterion(pred_fake, fake)
+                    d_loss = d_loss_real + d_loss_fake
 
-                d_loss = d_loss_real + d_loss_fake
+                    # Calculate accuracy (we are using logits)
+                    pred_real_labels = (
+                        torch.sigmoid(pred_real) > 0.5
+                    )  # Reals classified as reals
+                    pred_fake_labels = (
+                        torch.sigmoid(pred_fake) < 0.5
+                    )  # Fakes classified as fakes
+                    acc_real = (
+                        torch.mean(pred_real_labels.float()).item() * 100
+                    )  # % of reals classified as reals
+                    acc_fake = (
+                        torch.mean(pred_fake_labels.float()).item() * 100
+                    )  # % of fakes classified as fakes
+                    acc = (acc_real + acc_fake) / 2.0
 
-                d_loss.backward()
-                self.optimizer_discriminator.step()
-                d_loss_value = d_loss.item()
+                    partial_real_acc.append(acc_real)
+                    partial_fake_acc.append(acc_fake)
+                    partial_disc_acc.append(acc)
+
+                    d_loss.backward()
+                    self.optimizer_discriminator.step()
+
+                    partial_disc_loss.append(d_loss.item())
+
+                mean_partial_loss = np.mean(partial_disc_loss)
+                d_loss_value = mean_partial_loss
+
+                mean_partial_real_acc = np.mean(partial_real_acc)
+                mean_partial_fake_acc = np.mean(partial_fake_acc)
+                mean_partial_disc_acc = np.mean(partial_disc_acc)
+
+                epoch_real_acc.append(mean_partial_real_acc)
+                epoch_fake_acc.append(mean_partial_fake_acc)
+                epoch_acc.append(mean_partial_disc_acc)
 
                 # ---------------------
                 #  Train Generator
@@ -554,8 +602,6 @@ class CGAN:
                     [j + np.random.normal(0, 0) for j in sampled_labels]
                 )
 
-                # sampled_labels = sampled_labels.reshape((-1, 1))
-
                 # PyTorchify
                 sampled_labels = torch.tensor(
                     sampled_labels, dtype=torch.float32, device=device
@@ -566,18 +612,6 @@ class CGAN:
                 )
 
                 sampled_labels_formatted = sampled_labels_formatted.unsqueeze(1)
-
-                # Train the generator
-                # print()
-                # print("Train the generator:")
-
-                # print()
-                # print("My 'sampled_labels_formatted':")
-                # print(sampled_labels_formatted.shape)
-
-                # print()
-                # print("My 'noise':")
-                # print(noise.shape)
 
                 gen_data = torch.cat((noise, sampled_labels_formatted), dim=1)
                 gen_params = self.generator(gen_data)
@@ -590,9 +624,6 @@ class CGAN:
 
                 epoch_d_loss.append(d_loss.to("cpu").detach().numpy())
                 epoch_g_loss.append(g_loss.to("cpu").detach().numpy())
-
-            # epoch_d_loss = torch.tensor(epoch_d_loss).float()
-            # epoch_g_loss = torch.tensor(epoch_g_loss).float()
 
             all_d_loss.append(np.mean(epoch_d_loss))
             all_g_loss.append(np.mean(epoch_g_loss))
@@ -607,10 +638,24 @@ class CGAN:
 
             # Plot the progress
             mean_d_loss = np.mean(epoch_d_loss)
-            # mean_acc = np.mean(epoch_acc)
             mean_g_loss = np.mean(epoch_g_loss)
+            mean_acc = np.mean(epoch_acc)
+            mean_real_acc = np.mean(epoch_real_acc)
+            mean_fake_acc = np.mean(epoch_fake_acc)
 
-            print(f"Epoch {epoch}, D loss: {mean_d_loss}, G loss: {mean_g_loss}")
+            progress_update = {
+                "epoch": epoch,
+                "D loss": mean_d_loss,
+                "G loss": mean_g_loss,
+                "acc": mean_acc,
+                "real acc": mean_real_acc,
+                "fake acc": mean_fake_acc,
+            }
+            progress = pd.concat(
+                [progress, pd.DataFrame([progress_update])], ignore_index=True
+            )
+
+            print(progress.tail(1))
 
             # Generate data at every sample interval
 
@@ -620,7 +665,7 @@ class CGAN:
                 else:
                     raise ValueError("The current code works with two classes for now")
 
-        return all_d_loss, all_g_loss, all_acc
+        return progress
 
     def sample_parameters(self, epoch, n_samples, cond_class):
 
