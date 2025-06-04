@@ -2,13 +2,13 @@ import os
 import pickle
 import numpy as np
 import matplotlib.pyplot as plt
-from venv.cGANtools.oldGAN import CGAN
+from cGANtools.GAN import CGAN
 
 if __name__ == "__main__":
 
     # Training hyperparameters
 
-    latent_dim = 127  # Length of noise vector
+    latent_dim = 8 # 127  # Length of noise vector
     epochs = 10  # Total number of epochs
     n_sample = 300  # No of parameter sets to generate at every sampling epoch
     repeats = 2  # number of training repeats
@@ -47,8 +47,12 @@ if __name__ == "__main__":
             path_generator,
             savepath=this_savepath,
         )
-        d_loss, g_loss, acc = cgan.train(epochs, sample_interval, n_sample)
+        progress = cgan.train(epochs, sample_interval, n_sample)
 
+        # Extract the column value:
+        d_loss = progress["D loss"].values
+        g_loss = progress["G loss"].values
+        acc = progress["acc"].values
         # store training summary
 
         this_train_savepath = f"{this_savepath}training_summary/"
@@ -81,7 +85,7 @@ if __name__ == "__main__":
         fig = plt.figure(figsize=(10, 5))
         ax2 = fig.add_axes([0.2, 0.2, 1, 1])
 
-        ax2.plot(x_plot, d_loss, label="discriminator accuracy")
+        ax2.plot(x_plot, acc, label="discriminator accuracy")
         ax2.set(ylabel="accuracy", xlabel="epochs")
         ax2.legend()
         plt.savefig(

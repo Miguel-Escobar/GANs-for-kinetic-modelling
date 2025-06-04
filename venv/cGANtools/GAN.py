@@ -419,7 +419,7 @@ class CGAN:
         print(f"Total trainable parameters: {g_trainable_count + d_trainable_count}")
 
     def train(
-        self, epochs: int, sample_interval: int, n_samples: int, disc_iters: int = 4
+        self, epochs: int, sample_interval: int, n_samples: int, disc_iters: int = 1
     ) -> pd.DataFrame:
         """
         Trains the GAN.
