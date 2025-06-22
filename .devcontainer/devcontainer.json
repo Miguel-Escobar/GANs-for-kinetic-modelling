@@ -1,0 +1,35 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the
+// README at: https://github.com/devcontainers/templates/tree/main/src/python
+{
+	"name": "Python 3",
+	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
+	// "image": "rocm/tensorflow:rocm6.4.1-py3.12-tf2.18-dev",
+    "build": {
+        // Path is relative to the devcontainer.json file.
+        "dockerfile": "./Dockerfile"
+    },
+	// Features to add to the dev container. More info: https://containers.dev/features.
+	// "features": {},
+
+	// Use 'forwardPorts' to make a list of ports inside the container available locally.
+	// "forwardPorts": [],
+
+	// Use 'postCreateCommand' to run commands after the container is created.
+	// "postCreateCommand": "pip3 install --user -r requirements.txt",
+
+	// Configure tool-specific properties.
+	// "customizations": {},
+
+	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
+	// "remoteUser": "root"
+	"runArgs": [
+		"--network=host",
+		"--device=/dev/kfd",
+		"--device=/dev/dri",
+		"--ipc=host",
+		"--shm-size=16G",
+		"--group-add=video",
+		"--cap-add=SYS_PTRACE",
+		"--security-opt=seccomp=unconfined"
+	]
+}

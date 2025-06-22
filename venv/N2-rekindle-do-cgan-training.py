@@ -2,18 +2,19 @@ import os
 import pickle
 import numpy as np
 import matplotlib.pyplot as plt
+import helper as hp
 from cGANtools.GAN import CGAN
 
 if __name__ == "__main__":
 
     # Training hyperparameters
 
-    latent_dim = 8 # 127  # Length of noise vector
+    latent_dim = 8  # 127  # Length of noise vector
     epochs = 10  # Total number of epochs
     n_sample = 300  # No of parameter sets to generate at every sampling epoch
     repeats = 2  # number of training repeats
     batchsize = 1024  # Batchsize
-    sample_interval = 10  # Frequency of testing generator
+    sample_interval = 1  # Frequency of testing generator
 
     exp_id = "fdp1"  # <-- Choose 1 of 4 physiologies (fdp1-fdp4)
     path_generator = None  # <---if doing transfer learning put path to trained generator here else leave None
@@ -90,6 +91,37 @@ if __name__ == "__main__":
         ax2.legend()
         plt.savefig(
             f"{this_train_savepath}d_accuracy.svg",
+            dpi=300,
+            transparent=False,
+            bbox_inches="tight",
+        )
+
+        # Fetch relevant training data
+
+        relevant_idx = np.where(y_train == -1)[0]
+        relevant_training_data = X_train[relevant_idx, :]
+
+        training_mean = np.mean(relevant_training_data, axis=0)
+
+        KL = []
+
+        # calculate KL divergence
+        for j in range(0, epochs, 1):
+
+            this_generated_set = np.load(f"{this_savepath}{j}_r.npy")
+            this_set_mean = np.mean(this_generated_set, axis=0)
+
+            p, q = hp.get_distributions([training_mean, this_set_mean])
+            KL.append(hp.KL_div(p, q))
+        fig = plt.figure(figsize=(10, 5))
+        ax3 = fig.add_axes([0.2, 0.2, 1, 1])
+
+        x_plot = np.arange(0, epochs, sample_interval)
+        ax3.plot(x_plot, KL, label="KL divergence")
+        ax3.set(ylabel="KL divergence", xlabel="epochs")
+        ax3.legend()
+        plt.savefig(
+            f"{this_train_savepath}KL_divergence.svg",
             dpi=300,
             transparent=False,
             bbox_inches="tight",

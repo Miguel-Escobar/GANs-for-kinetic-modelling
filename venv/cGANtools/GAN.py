@@ -331,14 +331,14 @@ class Discriminator(nn.Module):
 class CGAN:
     def __init__(
         self,
-        X_train,
-        y_train,
-        latent_dim,
-        batch_size,
-        path_generator,
-        savepath,
-        num_classes=2,
-        verbose=False,
+        X_train, 
+        y_train, 
+        latent_dim, 
+        batch_size, 
+        path_generator, 
+        savepath, 
+        num_classes=2, 
+        verbose = False
     ):
         """
         Conditional Generative Adversarial Network (CGAN) for sampling

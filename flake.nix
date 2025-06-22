@@ -47,6 +47,16 @@
                       pkgs.git
                       pkgs.python312Packages.torchWithRocm
                       pkgs.python312Packages.torchvision
+                      pkgs.python312Packages.scikits-odes
+                      pkgs.python312Packages.cython
+                      pkgs.libgcc
+                      pkgs.flint3
+                      pkgs.cmake
+                      pkgs.gfortran9
+                      pkgs.sundials
+                      pkgs.gmp
+                      pkgs.swig
+                      pkgs.expat
                     ];
 
                     # https://devenv.sh/languages/

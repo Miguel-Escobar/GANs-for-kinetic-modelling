@@ -15,7 +15,6 @@ GAN_generated_parameters = np.load(path_to_GAN_generated_parameters)
 path_to_param_names_km = f'gan_input/{exp_id}/parameter_names_km_{exp_id}.pkl'
 with open(path_to_param_names_km, 'rb') as input_file:
      parameter_names_km = pickle.load(input_file)
-
 checkstability = CheckStability()
 
 # Load kinetic model, thermodynamic model and reference steady state for a given physiology
@@ -30,4 +29,3 @@ _,max_eig = checkstability.calc_eigenvalues_recal_vmax()
 
 #store and save the maximal eigenvalues
 pd.DataFrame(max_eig).to_csv(path_to_GAN_generated_parameters.replace('.npy','eigenvalues.csv'))
-
